@@ -96,6 +96,32 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
 					</li>
 				</ul>
 
+				<div className="mb-6">
+					<h3 className="text-lg font-semibold mb-2">Keyboard Shortcuts</h3>
+					<ul className="space-y-2 text-gray-700 dark:text-gray-300">
+						<li className="flex">
+							<span className="kbd">Space</span>
+							<span className="ml-3">Toggle auto-scrolling on/off</span>
+						</li>
+						<li className="flex">
+							<span className="kbd">Shift + ↑</span>
+							<span className="ml-3">Decrease scroll speed (faster)</span>
+						</li>
+						<li className="flex">
+							<span className="kbd">Shift + ↓</span>
+							<span className="ml-3">Increase scroll speed (slower)</span>
+						</li>
+						<li className="flex">
+							<span className="kbd">h</span>
+							<span className="ml-3">Show this help dialog</span>
+						</li>
+						<li className="flex">
+							<span className="kbd">Esc</span>
+							<span className="ml-3">Close dialogs</span>
+						</li>
+					</ul>
+				</div>
+
 				<p className="mt-5 text-sm text-gray-600 dark:text-gray-400">
 					<strong>Note:</strong> This app works best with manga sites that have
 					a consistent URL pattern for chapters.

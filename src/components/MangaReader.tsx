@@ -248,10 +248,16 @@ export default function MangaReader() {
 		 * 1. Base it on content size for proportional scrolling speed on different content
 		 * 2. Ensure a minimum scroll amount for very small content
 		 * 3. Scale by user-selected speed
+		 * 4. Apply a significant reduction factor to slow down the overall scrolling
+		 *    (User feedback indicated previous scrolling was far too fast)
 		 */
+		// Invert the speed scale: higher UI values = slower scrolling
+		// Map the speed from 0.5-10 range to 0.1-0.005 range (0.5 becomes 0.005, 10 becomes 0.1)
+		const speedFactor = 0.005 + (0.095 * (10.5 - scrollSpeed)) / 10;
+
 		const scrollStep = Math.max(
-			(scrollSpeed * Math.max(container.scrollHeight, 1000)) / 5000,
-			scrollSpeed * 0.2
+			(speedFactor * Math.max(container.scrollHeight, 1000)) / 5000,
+			speedFactor * 0.5
 		);
 
 		// Move down by the calculated step
@@ -751,6 +757,13 @@ export default function MangaReader() {
 							<div className="text-center min-w-[60px]">
 								<div className="text-xs text-gray-300 mb-1">Speed</div>
 								<div className="font-bold">{scrollSpeed.toFixed(1)}</div>
+								<div className="text-xs text-gray-300 mt-1">
+									{scrollSpeed < 3
+										? 'Faster'
+										: scrollSpeed < 7
+										? 'Medium'
+										: 'Slower'}
+								</div>
 							</div>
 							<button
 								onClick={() =>
