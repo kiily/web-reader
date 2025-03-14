@@ -63,6 +63,22 @@ html.transitioning * {
   background: rgb(var(--scrollbar-thumb-hover));
 }
 
+/* Custom animations */
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 3s ease-in-out infinite;
+}
+
 /* Turbo-inspired button styles */
 @layer components {
   .turbo-button {
