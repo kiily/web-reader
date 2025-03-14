@@ -448,8 +448,9 @@ export default function FloatingControls({
 						</svg>
 					</div>
 
-					{/* Play/Pause Button */}
-					<button
+					{/* Play/Pause Button
+					TODO: there is a bug here when clicking it in the minimzed state */}
+					{/* <button
 						onClick={(e) => {
 							e.stopPropagation();
 							isAutoScrolling ? onPauseAutoScroll() : onStartAutoScroll();
@@ -490,7 +491,7 @@ export default function FloatingControls({
 								/>
 							</svg>
 						)}
-					</button>
+					</button> */}
 
 					{/* Fullscreen/Expand Button */}
 					<button
