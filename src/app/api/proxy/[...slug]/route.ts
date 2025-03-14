@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
 	request: NextRequest,
-	{ params }: { params: { slug: string[] } }
+	context: { params: Promise<{ slug: string[] }> }
 ) {
 	try {
 		// Wait for params to ensure they're fully resolved
-		const slugArray = await Promise.resolve(params.slug);
+		const { slug } = await context.params;
 
 		// Reconstruct the target URL from the slug
-		const targetUrl = `https://${slugArray.join('/')}`;
+		const targetUrl = `https://${slug.join('/')}`;
 
 		// Log the proxied URL
 		console.log(`Proxying GET request to: ${targetUrl}`);
@@ -48,14 +48,14 @@ export async function GET(
 
 export async function POST(
 	request: NextRequest,
-	{ params }: { params: { slug: string[] } }
+	context: { params: Promise<{ slug: string[] }> }
 ) {
 	try {
 		// Wait for params to ensure they're fully resolved
-		const slugArray = await Promise.resolve(params.slug);
+		const { slug } = await context.params;
 
 		// Reconstruct the target URL from the slug
-		const targetUrl = `https://${slugArray.join('/')}`;
+		const targetUrl = `https://${slug.join('/')}`;
 
 		// Log the proxied URL
 		console.log(`Proxying POST request to: ${targetUrl}`);
