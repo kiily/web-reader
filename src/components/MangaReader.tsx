@@ -261,9 +261,26 @@ export default function MangaReader() {
 		 * 2. Ensure scrolling is intuitive at all speed settings
 		 * 3. Use a simpler, more direct calculation based on user speed setting
 		 */
-		// Simple linear calculation - higher speed values = faster scrolling
-		// Map from 1-10 to a useful range
-		const scrollStep = scrollSpeed * 0.5; // Simple linear calculation
+		// Non-linear calculation for more intuitive speed progression
+		// 1: Very slow, 5: Leisurely, 6-8: Quick reading, 10: Very fast
+		let scrollStep;
+
+		if (scrollSpeed === 1) {
+			// Very slow - slow enough to read complex passages
+			scrollStep = 1.2;
+		} else if (scrollSpeed <= 3) {
+			// Slow to moderate - good for normal reading
+			scrollStep = 2 + (scrollSpeed - 1) * 1.5;
+		} else if (scrollSpeed <= 5) {
+			// Moderate to leisurely - comfortable continuous reading
+			scrollStep = 5 + (scrollSpeed - 3) * 2;
+		} else if (scrollSpeed <= 8) {
+			// Quick reading - faster progression for scanning
+			scrollStep = 9 + (scrollSpeed - 5) * 3;
+		} else {
+			// Very fast - rapid scanning and skimming
+			scrollStep = 18 + (scrollSpeed - 8) * 4;
+		}
 
 		// Move based on direction
 		container.scrollTop +=
