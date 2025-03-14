@@ -1,19 +1,33 @@
 'use client';
 
-import { useState, useRef, useEffect, ChangeEvent, useTransition } from 'react';
+import React, {
+	useState,
+	useRef,
+	useEffect,
+	ChangeEvent,
+	useTransition,
+	useCallback,
+} from 'react';
+import NavBar from './NavBar';
+import Newsletter from './Newsletter';
+import FloatingControls from './FloatingControls';
+import ControlPanel from './ControlPanel';
+import HelpModal from './HelpModal';
+import { useToast } from '../hooks/useToast';
+import { ChapterInfo } from '../types/manga';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useTheme } from './ThemeProvider';
 
 // Get environment variables with fallbacks
+const baseMangaApiUrl =
+	process.env.NEXT_PUBLIC_MANGA_API_URL || 'https://api.mangadex.org';
+const baseUploadApiUrl =
+	process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'https://uploads.mangadex.org';
 const defaultPattern = process.env.NEXT_PUBLIC_DEFAULT_PATTERN || 'chapter-{n}';
 const defaultScrollSpeed = parseInt(
 	process.env.NEXT_PUBLIC_DEFAULT_SCROLL_SPEED || '1',
 	10
 );
-
-interface ChapterInfo {
-	title: string;
-	pageCount: number;
-	lastUpdated: string;
-}
 
 export default function MangaReader() {
 	const [url, setUrl] = useState<string>('');
@@ -26,11 +40,68 @@ export default function MangaReader() {
 		useState<string>(defaultPattern);
 	const [currentChapter, setCurrentChapter] = useState<number>(1);
 	const [showHelp, setShowHelp] = useState<boolean>(false);
+	const [showControls, setShowControls] = useState<boolean>(false);
 	const [chapterInfo, setChapterInfo] = useState<ChapterInfo | null>(null);
 	const [isPending, startTransition] = useTransition();
+	const [containerHeight, setContainerHeight] = useState<number>(0);
+	const [contentLoaded, setContentLoaded] = useState<boolean>(false);
+	const [scrollPosition, setScrollPosition] = useState<number>(0);
 
+	const { theme } = useTheme();
+	const { toast } = useToast();
+	const router = useRouter();
+	const searchParams = useSearchParams();
+
+	// Refs for DOM elements and scroll management
 	const iframeRef = useRef<HTMLIFrameElement>(null);
-	const scrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+	const iframeContainerRef = useRef<HTMLDivElement>(null);
+	const autoScrollAnimationRef = useRef<number | null>(null);
+	const contentLoadedRef = useRef<boolean>(false);
+	const previousScrollTopRef = useRef<number>(0);
+	const noScrollChangeCountRef = useRef<number>(0);
+
+	// Load saved URL from localStorage on mount
+	useEffect(() => {
+		const savedUrl = localStorage.getItem('mangaUrl');
+		if (savedUrl) {
+			setInputUrl(savedUrl);
+			// Don't automatically load the URL to avoid unexpected network requests
+		}
+	}, []);
+
+	// Update container height on window resize
+	useEffect(() => {
+		const updateContainerHeight = () => {
+			if (iframeContainerRef.current) {
+				// Calculate available height by subtracting navbar height (approximately)
+				const navbarHeight = 64; // Approximate height of navbar in pixels
+				const windowHeight = window.innerHeight;
+				const newHeight = windowHeight - navbarHeight;
+				setContainerHeight(newHeight);
+			}
+		};
+
+		// Set initial height
+		updateContainerHeight();
+
+		// Add resize event listener
+		window.addEventListener('resize', updateContainerHeight);
+
+		// Clean up
+		return () => {
+			window.removeEventListener('resize', updateContainerHeight);
+		};
+	}, []);
+
+	// Parse URL from search params
+	useEffect(() => {
+		const urlParam = searchParams.get('url');
+		if (urlParam) {
+			const decodedUrl = decodeURIComponent(urlParam);
+			setInputUrl(decodedUrl);
+			setUrl(decodedUrl);
+		}
+	}, [searchParams]);
 
 	// Function to extract chapter number from URL
 	const extractChapterNumber = (url: string): number => {
@@ -79,6 +150,268 @@ export default function MangaReader() {
 		}
 	};
 
+	/**
+	 * Auto Scroll Implementation
+	 *
+	 * The scrolling mechanism works as follows:
+	 * 1. User initiates auto-scrolling with startAutoScroll()
+	 * 2. We use requestAnimationFrame to create a smooth animation loop (performScroll)
+	 * 3. Each frame, we increment the scroll position by a small amount based on speed
+	 * 4. We detect the end of content through multiple methods to handle cross-origin limitations
+	 * 5. When end is detected or user manually scrolls, scrolling stops
+	 *
+	 * Challenges addressed:
+	 * - Cross-origin iframe content means we can't directly access content dimensions
+	 * - We need to detect scrolling limits even when scrollHeight/offsetHeight are inaccurate
+	 * - Animation must be smooth across different content sizes and speeds
+	 */
+
+	// Auto scroll logic using requestAnimationFrame for smoother scrolling
+	const performScroll = useCallback(() => {
+		// Don't check isAutoScrolling here, as it might have changed between frames
+		if (!iframeContainerRef.current || !contentLoadedRef.current) return;
+
+		const container = iframeContainerRef.current;
+
+		// Use scrollHeight and clientHeight for more accurate measurement
+		// offsetHeight includes borders which can cause issues
+		let scrollLimit = container.scrollHeight - container.clientHeight;
+
+		// Debug logs removed in production - uncomment if needed
+		// console.log('scrollLimit:', scrollLimit, 'scrollTop:', container.scrollTop);
+
+		/**
+		 * Handle difficult-to-detect end conditions:
+		 *
+		 * 1. When scrollLimit is incorrectly calculated as 0 or negative (common with iframes)
+		 * 2. When we can't detect actual scroll dimensions due to cross-origin restrictions
+		 * In these cases, we rely on detecting if scroll position stops changing
+		 */
+		if (scrollLimit <= 10) {
+			// Small buffer to account for rounding errors
+			// If we can't trust scrollLimit, use a large fallback value
+			scrollLimit = 10000;
+
+			// Detect if we've reached the bottom by checking if scroll position hasn't changed
+			// after multiple scroll attempts despite our attempts to scroll
+			if (
+				container.scrollTop > 0 &&
+				container.scrollTop === previousScrollTopRef.current
+			) {
+				// Increment our counter tracking consecutive frames without scroll change
+				noScrollChangeCountRef.current += 1;
+
+				// If we've had several frames with no scroll movement, we've likely hit the bottom
+				if (noScrollChangeCountRef.current >= 3) {
+					// 3 frames is enough to detect the end
+					// Stop scrolling and notify the user
+					if (autoScrollAnimationRef.current) {
+						cancelAnimationFrame(autoScrollAnimationRef.current);
+						autoScrollAnimationRef.current = null;
+					}
+					setIsAutoScrolling(false);
+
+					toast({
+						title: 'End of chapter',
+						description: "You've reached the end of this chapter.",
+					});
+					return;
+				}
+			} else {
+				// Reset the counter if scroll position has changed
+				noScrollChangeCountRef.current = 0;
+			}
+
+			// Save current position for next comparison
+			previousScrollTopRef.current = container.scrollTop;
+		} else if (container.scrollTop >= scrollLimit - 5) {
+			/**
+			 * Standard end detection:
+			 * When scrollLimit is correctly calculated and we've reached it
+			 */
+			// 5px buffer for rounding
+			if (autoScrollAnimationRef.current) {
+				cancelAnimationFrame(autoScrollAnimationRef.current);
+				autoScrollAnimationRef.current = null;
+			}
+			setIsAutoScrolling(false);
+
+			toast({
+				title: 'End of chapter',
+				description: "You've reached the end of this chapter.",
+			});
+			return;
+		}
+
+		/**
+		 * Calculate scroll step:
+		 * 1. Base it on content size for proportional scrolling speed on different content
+		 * 2. Ensure a minimum scroll amount for very small content
+		 * 3. Scale by user-selected speed
+		 */
+		const scrollStep = Math.max(
+			(scrollSpeed * Math.max(container.scrollHeight, 1000)) / 5000,
+			scrollSpeed * 0.2
+		);
+
+		// Move down by the calculated step
+		container.scrollTop += scrollStep;
+
+		// Continue the animation only if we're still auto-scrolling
+		if (isAutoScrolling) {
+			autoScrollAnimationRef.current = requestAnimationFrame(performScroll);
+		}
+	}, [isAutoScrolling, scrollSpeed, toast]);
+
+	/**
+	 * Start auto-scrolling function
+	 *
+	 * This initializes the scrolling mechanism and begins the animation loop
+	 */
+	const startAutoScroll = useCallback(() => {
+		const container = iframeContainerRef.current;
+		if (!container) {
+			setError(
+				'Could not access the manga content. Please try reloading the page.'
+			);
+			return;
+		}
+
+		if (!contentLoadedRef.current) {
+			toast({
+				title: 'Content still loading',
+				description:
+					'Please wait for the content to fully load before scrolling.',
+			});
+			return;
+		}
+
+		// Safety: Cancel any existing animation frames first
+		if (autoScrollAnimationRef.current) {
+			cancelAnimationFrame(autoScrollAnimationRef.current);
+			autoScrollAnimationRef.current = null;
+		}
+
+		// Reset tracking variables to start with a clean state
+		previousScrollTopRef.current = container.scrollTop;
+		noScrollChangeCountRef.current = 0;
+
+		// Set state BEFORE starting animation to ensure UI is responsive
+		setIsAutoScrolling(true);
+
+		// Begin the animation loop immediately (on the next frame)
+		autoScrollAnimationRef.current = requestAnimationFrame(performScroll);
+
+		console.log(`Auto-scrolling started with speed ${scrollSpeed}`);
+	}, [performScroll, scrollSpeed, toast]);
+
+	/**
+	 * Pause auto-scrolling function
+	 *
+	 * Stops the animation loop and updates UI state
+	 */
+	const pauseAutoScroll = useCallback(() => {
+		// Cancel animation frame FIRST to prevent additional frames
+		if (autoScrollAnimationRef.current) {
+			cancelAnimationFrame(autoScrollAnimationRef.current);
+			autoScrollAnimationRef.current = null;
+		}
+
+		// Then update state to reflect UI changes
+		setIsAutoScrolling(false);
+		console.log('Auto-scrolling paused');
+	}, []);
+
+	// Handle iframe load events
+	const handleIframeLoad = useCallback(() => {
+		console.log('Iframe content loaded successfully');
+		contentLoadedRef.current = true;
+		setIsLoading(false);
+		setContentLoaded(true);
+
+		// Reset scroll tracking
+		previousScrollTopRef.current = 0;
+		noScrollChangeCountRef.current = 0;
+
+		// Reset scroll position
+		if (iframeContainerRef.current) {
+			iframeContainerRef.current.scrollTop = 0;
+		}
+
+		// Stop auto-scrolling when new content is loaded
+		if (isAutoScrolling) {
+			console.log(
+				'🚀 ~ handleIframeLoad ~ handleIframeLoad:',
+				handleIframeLoad
+			);
+
+			pauseAutoScroll();
+		}
+
+		// Try to adjust iframe height based on content
+		try {
+			const iframe = iframeRef.current;
+			if (iframe && iframe.contentWindow && iframe.contentDocument) {
+				// Set minimum height to viewport height
+				const minHeight = window.innerHeight - 64; // Subtract navbar height
+
+				// Get actual content height
+				const bodyHeight = iframe.contentDocument.body.scrollHeight;
+
+				// Use the larger of the two
+				const targetHeight = Math.max(minHeight, bodyHeight);
+
+				// Set iframe height
+				iframe.style.height = `${targetHeight}px`;
+
+				console.log(`Adjusted iframe height to ${targetHeight}px`);
+
+				// Force a reflow to ensure scrollHeight is calculated correctly
+				if (iframeContainerRef.current) {
+					// Reading a property forces a reflow
+					const forceReflow = iframeContainerRef.current.scrollHeight;
+				}
+			}
+		} catch (e) {
+			// This might fail due to cross-origin restrictions
+			console.error('Could not adjust iframe height:', e);
+
+			// Fallback to using a fixed height
+			if (iframeRef.current) {
+				iframeRef.current.style.height = '100%';
+			}
+		}
+		console.log('🚀 ~ handleIframeLoad ~ handleIframeLoad:', handleIframeLoad);
+	}, [isAutoScrolling, pauseAutoScroll]);
+
+	// Handle iframe loading errors
+	const handleIframeError = () => {
+		console.error('Error loading iframe content');
+		contentLoadedRef.current = false;
+		setIsLoading(false);
+		setError(
+			'Failed to load manga content. The URL might be invalid or the server is not responding.'
+		);
+	};
+
+	// Update scrolling when speed changes while active
+	useEffect(() => {
+		if (isAutoScrolling) {
+			// Restart scrolling with new speed
+			pauseAutoScroll();
+			startAutoScroll();
+		}
+	}, [scrollSpeed, isAutoScrolling, pauseAutoScroll, startAutoScroll]);
+
+	// Clean up on unmount
+	useEffect(() => {
+		return () => {
+			if (autoScrollAnimationRef.current) {
+				cancelAnimationFrame(autoScrollAnimationRef.current);
+			}
+		};
+	}, []);
+
 	// Function to load the manga page
 	const loadPage = async () => {
 		if (!inputUrl) {
@@ -88,60 +421,47 @@ export default function MangaReader() {
 
 		setIsLoading(true);
 		setError(null);
+		pauseAutoScroll(); // Ensure any ongoing scrolling is stopped
+		contentLoadedRef.current = false;
 
-		// Extract chapter number from URL
-		const chapter = extractChapterNumber(inputUrl);
-		setCurrentChapter(chapter);
+		try {
+			// Extract chapter number from URL
+			const chapter = extractChapterNumber(inputUrl);
+			setCurrentChapter(chapter);
 
-		// Create a proxy URL to bypass CORS
-		const proxyUrl = `/api/proxy/${inputUrl.replace(/^https?:\/\//, '')}`;
-		setUrl(proxyUrl);
+			// Save URL to localStorage
+			localStorage.setItem('mangaUrl', inputUrl);
 
-		// Use API calls instead of server actions
-		startTransition(async () => {
-			try {
-				// Log the view using API
-				await logMangaView(inputUrl, chapter);
+			// Set the URL directly - we'll use proxy URL when rendering
+			setUrl(inputUrl);
 
-				// Fetch chapter info using API
-				const result = await fetchChapterInfo(inputUrl);
-				if (result.success && result.data) {
-					setChapterInfo(result.data as ChapterInfo);
+			// Reset scroll position when loading a new page
+			if (iframeContainerRef.current) {
+				iframeContainerRef.current.scrollTop = 0;
+			}
+
+			// Use API calls instead of server actions
+			startTransition(async () => {
+				try {
+					// Log the view using API
+					await logMangaView(inputUrl, chapter);
+
+					// Fetch chapter info using API
+					const result = await fetchChapterInfo(inputUrl);
+					if (result.success && result.data) {
+						setChapterInfo(result.data as ChapterInfo);
+					}
+				} catch (error) {
+					console.error('API call error:', error);
 				}
-			} catch (error) {
-				console.error('API call error:', error);
-			}
-		});
-
-		setIsLoading(false);
-	};
-
-	// Function to start auto-scrolling
-	const startAutoScroll = () => {
-		if (!iframeRef.current) return;
-
-		setIsAutoScrolling(true);
-
-		// Clear any existing interval
-		if (scrollIntervalRef.current) {
-			clearInterval(scrollIntervalRef.current);
-		}
-
-		// Set up a new interval for scrolling
-		scrollIntervalRef.current = setInterval(() => {
-			if (iframeRef.current && iframeRef.current.contentWindow) {
-				iframeRef.current.contentWindow.scrollBy(0, scrollSpeed);
-			}
-		}, 20);
-	};
-
-	// Function to pause auto-scrolling
-	const pauseAutoScroll = () => {
-		setIsAutoScrolling(false);
-
-		if (scrollIntervalRef.current) {
-			clearInterval(scrollIntervalRef.current);
-			scrollIntervalRef.current = null;
+			});
+		} catch (error) {
+			console.error('Error loading page:', error);
+			setError('An error occurred while loading the page');
+		} finally {
+			setIsLoading(false);
+			// Hide controls when page loads for immersive reading
+			setShowControls(false);
 		}
 	};
 
@@ -161,28 +481,13 @@ export default function MangaReader() {
 		);
 
 		setInputUrl(newUrl);
-		setCurrentChapter(prevChapter);
+		// Don't change the current chapter yet - wait for the load to succeed
 
-		// Load the new page
-		setIsLoading(true);
-		setError(null);
+		// Stop any ongoing scrolling
+		pauseAutoScroll();
 
-		// Create a proxy URL to bypass CORS
-		const proxyUrl = `/api/proxy/${newUrl.replace(/^https?:\/\//, '')}`;
-		setUrl(proxyUrl);
-
-		// Log the new chapter view
-		startTransition(async () => {
-			await logMangaView(newUrl, prevChapter);
-
-			// Fetch info for the new chapter
-			const result = await fetchChapterInfo(newUrl);
-			if (result.success && result.data) {
-				setChapterInfo(result.data as ChapterInfo);
-			}
-		});
-
-		setIsLoading(false);
+		// Load the new page (this will update all necessary state)
+		loadPage();
 	};
 
 	// Function to load the next chapter
@@ -196,28 +501,26 @@ export default function MangaReader() {
 		);
 
 		setInputUrl(newUrl);
-		setCurrentChapter(nextChapter);
+		// Don't change the current chapter yet - wait for the load to succeed
 
-		// Load the new page
-		setIsLoading(true);
-		setError(null);
+		// Stop any ongoing scrolling
+		pauseAutoScroll();
 
-		// Create a proxy URL to bypass CORS
-		const proxyUrl = `/api/proxy/${newUrl.replace(/^https?:\/\//, '')}`;
-		setUrl(proxyUrl);
+		// Load the new page (this will update all necessary state)
+		loadPage();
+	};
 
-		// Log the new chapter view
-		startTransition(async () => {
-			await logMangaView(newUrl, nextChapter);
+	// Function to manually adjust scroll position
+	const handleManualScroll = () => {
+		// If user is manually scrolling, pause any auto-scrolling
+		if (isAutoScrolling) {
+			// pauseAutoScroll();
+		}
+	};
 
-			// Fetch info for the new chapter
-			const result = await fetchChapterInfo(newUrl);
-			if (result.success && result.data) {
-				setChapterInfo(result.data as ChapterInfo);
-			}
-		});
-
-		setIsLoading(false);
+	// Toggle controls visibility
+	const toggleControls = () => {
+		setShowControls(!showControls);
 	};
 
 	// Handle input changes with proper typing
@@ -233,255 +536,234 @@ export default function MangaReader() {
 		setNextChapterPattern(e.target.value);
 	};
 
-	// Clean up interval on component unmount
-	useEffect(() => {
-		return () => {
-			if (scrollIntervalRef.current) {
-				clearInterval(scrollIntervalRef.current);
+	// Proxy URL through our API to avoid CORS issues
+	const proxyUrl = url ? `/api/proxy/${url.replace(/^https?:\/\//, '')}` : '';
+
+	// Function to handle keyboard shortcuts
+	const handleKeyDown = useCallback(
+		(e: KeyboardEvent) => {
+			// Only handle shortcuts if content is loaded
+			if (!contentLoadedRef.current) return;
+
+			switch (e.key) {
+				case ' ': // Space to toggle auto-scroll
+					e.preventDefault();
+					if (isAutoScrolling) {
+						pauseAutoScroll();
+					} else {
+						startAutoScroll();
+					}
+					break;
+				case 'ArrowUp': // Speed up scrolling
+					if (e.shiftKey) {
+						e.preventDefault();
+						setScrollSpeed((prev) => Math.min(prev + 0.5, 10));
+					}
+					break;
+				case 'ArrowDown': // Slow down scrolling
+					if (e.shiftKey) {
+						e.preventDefault();
+						setScrollSpeed((prev) => Math.max(prev - 0.5, 0.5));
+					}
+					break;
+				case 'h': // Toggle help
+					setShowHelp(true);
+					break;
+				case 'Escape': // Close help
+					if (showHelp) {
+						setShowHelp(false);
+					}
+					break;
 			}
+		},
+		[isAutoScrolling, startAutoScroll, pauseAutoScroll, showHelp]
+	);
+
+	// Add keyboard event listeners
+	useEffect(() => {
+		window.addEventListener('keydown', handleKeyDown);
+		return () => {
+			window.removeEventListener('keydown', handleKeyDown);
 		};
-	}, []);
+	}, [handleKeyDown]);
 
 	return (
-		<div className="bg-white rounded-lg shadow-md p-6">
-			<div className="mb-6">
-				<div className="flex items-center mb-4">
-					<h2 className="text-xl font-semibold text-gray-800">
-						{process.env.NEXT_PUBLIC_APP_NAME || 'Manga Reader'}
-					</h2>
-					<button
-						onClick={() => setShowHelp(true)}
-						className="ml-2 text-sm text-blue-500 hover:text-blue-700"
-						aria-label="Show help"
-					>
-						<svg
-							xmlns="http://www.w3.org/2000/svg"
-							className="h-5 w-5"
-							viewBox="0 0 20 20"
-							fill="currentColor"
+		<div className="min-h-screen text-gray-900 dark:text-gray-200 flex flex-col">
+			{/* Main container with maximized reading area */}
+			<div className="flex flex-col h-screen">
+				{/* Navbar using the component */}
+				<NavBar
+					toggleControls={toggleControls}
+					toggleHelp={() => setShowHelp(true)}
+					title="Manga Reader"
+					// subtitle={chapterInfo?.title}
+				/>
+
+				{/* Control Panel using the component */}
+				<ControlPanel
+					isOpen={showControls}
+					inputUrl={inputUrl}
+					onUrlChange={handleUrlChange}
+					scrollSpeed={scrollSpeed}
+					onScrollSpeedChange={handleSpeedChange}
+					nextChapterPattern={nextChapterPattern}
+					onPatternChange={handlePatternChange}
+					isLoading={isLoading}
+					isPending={isPending}
+					isAutoScrolling={isAutoScrolling}
+					currentChapter={currentChapter}
+					error={error}
+					chapterInfo={chapterInfo}
+					onLoadPage={loadPage}
+					onStartAutoScroll={startAutoScroll}
+					onPauseAutoScroll={pauseAutoScroll}
+					onPreviousChapter={loadPreviousChapter}
+					onNextChapter={loadNextChapter}
+				/>
+
+				{/* Maximized reading area */}
+				{url ? (
+					<div className="flex-1 relative" data-testid="manga-reader-container">
+						<div
+							ref={iframeContainerRef}
+							className="w-full h-[100dvh] overflow-auto bg-gray-100 dark:bg-gray-900"
+							onScroll={handleManualScroll}
+							data-testid="iframe-container"
 						>
-							<path
-								fillRule="evenodd"
-								d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z"
-								clipRule="evenodd"
+							{isLoading && (
+								<div className="absolute inset-0 flex items-center justify-center bg-gray-100/80 dark:bg-gray-900/80 z-10">
+									<div className="flex flex-col items-center">
+										<div className="w-12 h-12 border-4 border-t-primary rounded-full animate-spin mb-4"></div>
+										<p className="text-gray-700 dark:text-gray-300">
+											Loading content...
+										</p>
+									</div>
+								</div>
+							)}
+							<iframe
+								ref={iframeRef}
+								src={proxyUrl}
+								className={`w-full h-full border-0 ${
+									theme === 'dark' ? 'invert' : ''
+								}`}
+								onLoad={handleIframeLoad}
+								onError={handleIframeError}
+								sandbox="allow-same-origin"
+								data-testid="manga-iframe"
 							/>
-						</svg>
-					</button>
-				</div>
-
-				<div className="flex flex-col md:flex-row gap-4 mb-4">
-					<div className="flex-grow">
-						<label
-							htmlFor="mangaUrl"
-							className="block text-sm font-medium text-gray-700 mb-1"
-						>
-							Manga URL
-						</label>
-						<input
-							type="text"
-							id="mangaUrl"
-							value={inputUrl}
-							onChange={handleUrlChange}
-							placeholder="https://example.com/manga/chapter-1"
-							className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-						/>
-					</div>
-					<div className="flex items-end">
-						<button
-							onClick={loadPage}
-							disabled={isLoading || isPending}
-							className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
-						>
-							{isLoading || isPending ? 'Loading...' : 'Load Page'}
-						</button>
-					</div>
-				</div>
-
-				{error && (
-					<div className="mb-4 p-3 bg-red-100 text-red-700 rounded-md">
-						{error}
-					</div>
-				)}
-
-				<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-					<div>
-						<label
-							htmlFor="scrollSpeed"
-							className="block text-sm font-medium text-gray-700 mb-1"
-						>
-							Scroll Speed
-						</label>
-						<input
-							type="range"
-							id="scrollSpeed"
-							min="1"
-							max="10"
-							value={scrollSpeed}
-							onChange={handleSpeedChange}
-							className="w-full"
-						/>
-						<div className="flex justify-between text-xs text-gray-500">
-							<span>Slow</span>
-							<span>Fast</span>
 						</div>
-					</div>
 
-					<div>
-						<label
-							htmlFor="nextChapterPattern"
-							className="block text-sm font-medium text-gray-700 mb-1"
-						>
-							Next Chapter Pattern
-						</label>
-						<input
-							type="text"
-							id="nextChapterPattern"
-							value={nextChapterPattern}
-							onChange={handlePatternChange}
-							placeholder="chapter-{n}"
-							className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+						{/* Floating Controls */}
+						<FloatingControls
+							isAutoScrolling={isAutoScrolling}
+							scrollSpeed={scrollSpeed}
+							onScrollSpeedChange={setScrollSpeed}
+							onStartAutoScroll={startAutoScroll}
+							onPauseAutoScroll={pauseAutoScroll}
+							onPreviousChapter={loadPreviousChapter}
+							onNextChapter={loadNextChapter}
+							onToggleControls={toggleControls}
+							currentChapter={currentChapter}
+							isPreviousDisabled={
+								!url ||
+								isPending ||
+								currentChapter <= 1 ||
+								!contentLoadedRef.current
+							}
+							isNextDisabled={!url || isPending || !contentLoadedRef.current}
+							isScrollDisabled={!url || !contentLoadedRef.current}
 						/>
 					</div>
-				</div>
+				) : (
+					<>
+						<div className="flex-1 flex items-center justify-center p-6">
+							<div className="max-w-md w-full">
+								<div className="text-center mb-8">
+									<h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-3">
+										Manga Reader
+									</h1>
+									<p className="text-gray-600 dark:text-gray-400 text-lg">
+										Enter a manga URL to start reading
+									</p>
+								</div>
 
-				<div className="flex flex-wrap gap-2">
-					{isAutoScrolling ? (
-						<button
-							onClick={pauseAutoScroll}
-							className="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
-						>
-							Pause
-						</button>
-					) : (
-						<button
-							onClick={startAutoScroll}
-							disabled={!url}
-							className="px-4 py-2 bg-green-500 text-white rounded-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50"
-						>
-							Start Auto-Scroll
-						</button>
-					)}
+								<div className="space-y-5 turbo-card p-6">
+									<div>
+										<label
+											htmlFor="initialUrl"
+											className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
+										>
+											Manga URL
+										</label>
+										<input
+											type="text"
+											id="initialUrl"
+											value={inputUrl}
+											onChange={handleUrlChange}
+											placeholder="https://example.com/manga/chapter-1"
+											className="turbo-input"
+											data-testid="manga-url-input"
+										/>
+									</div>
 
-					<button
-						onClick={loadPreviousChapter}
-						disabled={!url || isPending || currentChapter <= 1}
-						className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50"
-					>
-						Previous Chapter
-					</button>
+									<button
+										onClick={loadPage}
+										disabled={isLoading || isPending || !inputUrl}
+										className="w-full turbo-button-primary disabled:opacity-50 disabled:cursor-not-allowed"
+										data-testid="load-manga-button"
+									>
+										{isLoading || isPending ? 'Loading...' : 'Start Reading'}
+									</button>
 
-					<button
-						onClick={loadNextChapter}
-						disabled={!url || isPending}
-						className="px-4 py-2 bg-purple-500 text-white rounded-md hover:bg-purple-600 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50"
-					>
-						Next Chapter
-					</button>
-				</div>
-			</div>
-
-			{url && (
-				<div className="relative">
-					{chapterInfo && (
-						<div className="mb-3 p-3 bg-blue-50 text-blue-800 rounded-md">
-							<h3 className="font-medium">{chapterInfo.title}</h3>
-							<div className="flex text-xs text-blue-600 mt-1 justify-between">
-								<span>Pages: {chapterInfo.pageCount}</span>
-								<span>
-									Last updated:{' '}
-									{new Date(chapterInfo.lastUpdated).toLocaleDateString()}
-								</span>
+									<button
+										onClick={() => setShowHelp(true)}
+										className="w-full turbo-button-outline"
+										data-testid="help-button"
+									>
+										How to Use
+									</button>
+								</div>
 							</div>
 						</div>
-					)}
-					<div className="w-full h-[600px] border border-gray-300 rounded-md overflow-hidden">
-						<iframe
-							ref={iframeRef}
-							src={url}
-							className="w-full h-full"
-							title="Manga Reader"
-							sandbox="allow-same-origin"
-						/>
+
+						{/* Newsletter component at the bottom */}
+						<div className="mt-auto">
+							<Newsletter />
+						</div>
+					</>
+				)}
+
+				{/* Help modal using the component */}
+				<HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
+
+				{/* Scrolling speed indicator */}
+				{isAutoScrolling && (
+					<div className="fixed bottom-4 right-4 bg-black bg-opacity-75 text-white py-2 px-4 rounded-md shadow-lg z-30">
+						<div className="flex items-center space-x-2">
+							<button
+								onClick={() =>
+									setScrollSpeed((prev) => Math.max(prev - 0.5, 0.5))
+								}
+								className="p-1 hover:bg-gray-700 rounded"
+							>
+								<span className="text-lg">−</span>
+							</button>
+							<div className="text-center min-w-[60px]">
+								<div className="text-xs text-gray-300 mb-1">Speed</div>
+								<div className="font-bold">{scrollSpeed.toFixed(1)}</div>
+							</div>
+							<button
+								onClick={() =>
+									setScrollSpeed((prev) => Math.min(prev + 0.5, 10))
+								}
+								className="p-1 hover:bg-gray-700 rounded"
+							>
+								<span className="text-lg">+</span>
+							</button>
+						</div>
 					</div>
-					<div className="mt-2 text-sm text-gray-500">
-						Current Chapter: {currentChapter}
-					</div>
-				</div>
-			)}
-
-			{showHelp && (
-				<>
-					<div
-						className="fixed inset-0 bg-black bg-opacity-50 z-40"
-						onClick={() => setShowHelp(false)}
-					></div>
-					<div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-6 rounded-lg shadow-xl z-50 max-w-md w-full max-h-[80vh] overflow-y-auto">
-						<button
-							onClick={() => setShowHelp(false)}
-							className="absolute top-2 right-2 text-gray-500 hover:text-gray-700"
-						>
-							&times;
-						</button>
-						<h3 className="text-lg font-bold mb-4">
-							How to Use the Manga Reader Assistant
-						</h3>
-
-						<h4 className="font-medium mt-4 mb-2">Basic Usage:</h4>
-						<ol className="list-decimal pl-5 mb-4">
-							<li className="mb-1">
-								Enter the URL of the manga chapter you want to read
-							</li>
-							<li className="mb-1">Click "Load Page" to display the manga</li>
-							<li className="mb-1">
-								Use "Start Auto-Scroll" to begin reading at your selected pace
-							</li>
-							<li className="mb-1">
-								Use "Pause" to temporarily stop scrolling
-							</li>
-							<li className="mb-1">
-								When finished with a chapter, click "Next Chapter" to load the
-								next one
-							</li>
-						</ol>
-
-						<h4 className="font-medium mt-4 mb-2">Settings:</h4>
-						<ul className="list-disc pl-5 mb-4">
-							<li className="mb-1">
-								<strong>Scroll Speed</strong>: Choose how fast the page scrolls
-							</li>
-							<li className="mb-1">
-								<strong>Next Chapter Pattern</strong>: Define how the URL
-								changes between chapters
-							</li>
-						</ul>
-
-						<h4 className="font-medium mt-4 mb-2">Tips:</h4>
-						<ul className="list-disc pl-5 mb-4">
-							<li className="mb-1">
-								For Solo Leveling, the default pattern "chapter-{'{n}'}" should
-								work correctly
-							</li>
-							<li className="mb-1">
-								You can manually scroll in the reader frame if needed
-							</li>
-							<li className="mb-1">
-								If auto-scrolling isn't working, try reloading the page
-							</li>
-						</ul>
-
-						<p className="mt-4 text-sm text-gray-600">
-							<strong>Note:</strong> This app works best with manga sites that
-							have a consistent URL pattern for chapters.
-						</p>
-						<p className="mt-2 text-xs text-gray-500">
-							Version: {process.env.NEXT_PUBLIC_APP_VERSION || '1.0.0'}
-						</p>
-						<p className="mt-1 text-xs text-gray-400">
-							Built with React 19 and Next.js 15
-						</p>
-					</div>
-				</>
-			)}
+				)}
+			</div>
 		</div>
 	);
 }
