@@ -3,9 +3,29 @@
 @tailwind utilities;
 
 :root {
-  --foreground-rgb: 0, 0, 0;
+  --foreground-rgb: 30, 30, 30;
   --background-start-rgb: 245, 245, 245;
   --background-end-rgb: 255, 255, 255;
+  --border-color: 229, 231, 235;
+  --input-bg: 249, 250, 251;
+  --card-bg: 255, 255, 255;
+  --header-bg: 255, 255, 255;
+  --scrollbar-track: 241, 241, 241;
+  --scrollbar-thumb: 209, 213, 219;
+  --scrollbar-thumb-hover: 156, 163, 175;
+}
+
+.dark {
+  --foreground-rgb: 229, 231, 235;
+  --background-start-rgb: 17, 17, 19;
+  --background-end-rgb: 17, 17, 19;
+  --border-color: 55, 65, 81;
+  --input-bg: 31, 31, 35;
+  --card-bg: 23, 23, 26;
+  --header-bg: 17, 17, 19;
+  --scrollbar-track: 38, 38, 43;
+  --scrollbar-thumb: 75, 85, 99;
+  --scrollbar-thumb-hover: 107, 114, 128;
 }
 
 body {
@@ -18,20 +38,59 @@ body {
     rgb(var(--background-start-rgb));
 }
 
+/* Apply smooth transitions to elements */
+html.transitioning * {
+  transition-duration: 200ms;
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-timing-function: ease-out;
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: rgb(var(--scrollbar-track));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #888;
+  background: rgb(var(--scrollbar-thumb));
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: rgb(var(--scrollbar-thumb-hover));
+}
+
+/* Turbo-inspired button styles */
+@layer components {
+  .turbo-button {
+    @apply px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary;
+  }
+
+  .turbo-button-primary {
+    @apply turbo-button bg-primary hover:bg-primary/90 text-white;
+  }
+
+  .turbo-button-secondary {
+    @apply turbo-button bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-900 dark:text-gray-100;
+  }
+
+  .turbo-button-outline {
+    @apply turbo-button bg-transparent border border-gray-300 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300;
+  }
+
+  /* Turbo-inspired input styles */
+  .turbo-input {
+    @apply w-full px-3 py-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 
+           rounded-lg text-sm text-gray-900 dark:text-gray-300 
+           focus:ring-2 focus:ring-primary focus:border-transparent 
+           transition duration-200 placeholder-gray-400 dark:placeholder-gray-500;
+  }
+
+  /* Turbo-inspired card styles */
+  .turbo-card {
+    @apply bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden;
+  }
 } 

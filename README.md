@@ -7,6 +7,7 @@ A web application built with Next.js 15 and React 19 that helps you read manga w
 - Load manga chapters directly within the app
 - Auto-scroll at customizable speeds
 - Navigate easily between chapters
+- **Light and Dark Mode** support for comfortable reading
 - Built with modern React 19 and Next.js 15
 - **Powered by Turbopack** for lightning-fast development
 - **Utilizes React 19's latest features** for improved performance
@@ -75,6 +76,16 @@ Turbopack is Next.js's Rust-based successor to Webpack, designed for incredible 
 3. Select your preferred scroll speed
 4. Click "Start Auto-Scroll" to begin reading
 5. Use the control buttons to pause, stop, or navigate to the next chapter
+6. Toggle between light and dark mode using the theme button in the header
+
+## Theme Support
+
+The application supports both light and dark modes:
+
+- **Dark Mode**: Default theme optimized for reading in low-light environments to reduce eye strain
+- **Light Mode**: Bright theme for reading in well-lit environments
+- **Automatic Detection**: The app will initially use your system preference
+- **Persistent Preference**: Your theme choice is saved and persists between sessions
 
 ## Note About Turbopack
 
