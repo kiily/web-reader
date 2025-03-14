@@ -764,7 +764,9 @@ export default function MangaReader() {
 										? 'Slow'
 										: scrollSpeed <= 7
 										? 'Normal'
-										: 'Fast'}
+										: scrollSpeed <= 9
+										? 'Fast'
+										: 'S Rank'}
 								</div>
 							</div>
 							<button
