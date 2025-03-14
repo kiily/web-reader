@@ -67,6 +67,10 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
 						<strong>Scroll Speed</strong>: Choose how fast the page scrolls
 					</li>
 					<li className="mb-1">
+						<strong>Scroll Direction</strong>: Toggle between scrolling up or
+						down
+					</li>
+					<li className="mb-1">
 						<strong>Chapter Pattern</strong>: Define how the URL changes between
 						chapters
 					</li>
@@ -110,6 +114,14 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
 						<li className="flex">
 							<span className="kbd">Shift + ↓</span>
 							<span className="ml-3">Decrease scroll speed (slower)</span>
+						</li>
+						<li className="flex">
+							<span className="kbd">Ctrl/Cmd + ↑</span>
+							<span className="ml-3">Set scroll direction to up</span>
+						</li>
+						<li className="flex">
+							<span className="kbd">Ctrl/Cmd + ↓</span>
+							<span className="ml-3">Set scroll direction to down</span>
 						</li>
 						<li className="flex">
 							<span className="kbd">h</span>

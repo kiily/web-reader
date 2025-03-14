@@ -36,6 +36,7 @@ export default function MangaReader() {
 	const [error, setError] = useState<string | null>(null);
 	const [isAutoScrolling, setIsAutoScrolling] = useState<boolean>(false);
 	const [scrollSpeed, setScrollSpeed] = useState<number>(defaultScrollSpeed);
+	const [scrollDirection, setScrollDirection] = useState<'down' | 'up'>('down');
 	const [nextChapterPattern, setNextChapterPattern] =
 		useState<string>(defaultPattern);
 	const [currentChapter, setCurrentChapter] = useState<number>(1);
@@ -192,16 +193,17 @@ export default function MangaReader() {
 			// If we can't trust scrollLimit, use a large fallback value
 			scrollLimit = 10000;
 
-			// Detect if we've reached the bottom by checking if scroll position hasn't changed
+			// Detect if we've reached the bottom or top by checking if scroll position hasn't changed
 			// after multiple scroll attempts despite our attempts to scroll
 			if (
-				container.scrollTop > 0 &&
+				((scrollDirection === 'down' && container.scrollTop > 0) ||
+					(scrollDirection === 'up' && container.scrollTop < scrollLimit)) &&
 				container.scrollTop === previousScrollTopRef.current
 			) {
 				// Increment our counter tracking consecutive frames without scroll change
 				noScrollChangeCountRef.current += 1;
 
-				// If we've had several frames with no scroll movement, we've likely hit the bottom
+				// If we've had several frames with no scroll movement, we've likely hit the bottom or top
 				if (noScrollChangeCountRef.current >= 3) {
 					// 3 frames is enough to detect the end
 					// Stop scrolling and notify the user
@@ -212,8 +214,12 @@ export default function MangaReader() {
 					setIsAutoScrolling(false);
 
 					toast({
-						title: 'End of chapter',
-						description: "You've reached the end of this chapter.",
+						title:
+							scrollDirection === 'down' ? 'End of chapter' : 'Top of chapter',
+						description:
+							scrollDirection === 'down'
+								? "You've reached the end of this chapter."
+								: "You've reached the top of this chapter.",
 					});
 					return;
 				}
@@ -224,7 +230,10 @@ export default function MangaReader() {
 
 			// Save current position for next comparison
 			previousScrollTopRef.current = container.scrollTop;
-		} else if (container.scrollTop >= scrollLimit - 5) {
+		} else if (
+			(scrollDirection === 'down' && container.scrollTop >= scrollLimit - 5) ||
+			(scrollDirection === 'up' && container.scrollTop <= 5)
+		) {
 			/**
 			 * Standard end detection:
 			 * When scrollLimit is correctly calculated and we've reached it
@@ -237,8 +246,11 @@ export default function MangaReader() {
 			setIsAutoScrolling(false);
 
 			toast({
-				title: 'End of chapter',
-				description: "You've reached the end of this chapter.",
+				title: scrollDirection === 'down' ? 'End of chapter' : 'Top of chapter',
+				description:
+					scrollDirection === 'down'
+						? "You've reached the end of this chapter."
+						: "You've reached the top of this chapter.",
 			});
 			return;
 		}
@@ -248,28 +260,20 @@ export default function MangaReader() {
 		 * 1. Base it on content size for proportional scrolling on different content
 		 * 2. Ensure scrolling is intuitive at all speed settings
 		 * 3. Use a simpler, more direct calculation based on user speed setting
-		 *
-		 * Speed scale meanings:
-		 * - 1-3: Slow, careful reading
-		 * - 4-7: Normal reading speed
-		 * - 8-10: Fast to very fast scanning
 		 */
-		// Use exponential scaling to create a wider range of speeds
-		// Map from 0.5-10 to a more useful range: 0.2 pixels to 12 pixels per frame
-		const basePixelsPerFrame = Math.pow(scrollSpeed, 1.5) * 0.1;
+		// Simple linear calculation - higher speed values = faster scrolling
+		// Map from 1-10 to a useful range
+		const scrollStep = scrollSpeed * 0.5; // Simple linear calculation
 
-		// Scale by content size to ensure consistent perceived speed regardless of content height
-		const contentScaleFactor = Math.max(container.scrollHeight, 1000) / 5000;
-		const scrollStep = basePixelsPerFrame * contentScaleFactor;
-
-		// Move down by the calculated step
-		container.scrollTop += scrollStep;
+		// Move based on direction
+		container.scrollTop +=
+			scrollDirection === 'down' ? scrollStep : -scrollStep;
 
 		// Continue the animation only if we're still auto-scrolling
 		if (isAutoScrolling) {
 			autoScrollAnimationRef.current = requestAnimationFrame(performScroll);
 		}
-	}, [isAutoScrolling, scrollSpeed, toast]);
+	}, [isAutoScrolling, scrollSpeed, scrollDirection, toast]);
 
 	/**
 	 * Start auto-scrolling function
@@ -548,6 +552,19 @@ export default function MangaReader() {
 	// Proxy URL through our API to avoid CORS issues
 	const proxyUrl = url ? `/api/proxy/${url.replace(/^https?:\/\//, '')}` : '';
 
+	// Function to toggle scroll direction
+	const toggleScrollDirection = useCallback(() => {
+		setScrollDirection((prev) => (prev === 'down' ? 'up' : 'down'));
+		// If currently scrolling, restart to apply the new direction
+		if (isAutoScrolling) {
+			pauseAutoScroll();
+			// Small delay to ensure state is updated
+			setTimeout(() => {
+				startAutoScroll();
+			}, 50);
+		}
+	}, [isAutoScrolling, pauseAutoScroll, startAutoScroll]);
+
 	// Function to handle keyboard shortcuts
 	const handleKeyDown = useCallback(
 		(e: KeyboardEvent) => {
@@ -563,16 +580,22 @@ export default function MangaReader() {
 						startAutoScroll();
 					}
 					break;
-				case 'ArrowUp': // Make scrolling faster
+				case 'ArrowUp': // Make scrolling faster or toggle direction
 					if (e.shiftKey) {
 						e.preventDefault();
 						setScrollSpeed((prev) => Math.min(prev + 1, 10));
+					} else if (e.ctrlKey || e.metaKey) {
+						e.preventDefault();
+						if (scrollDirection !== 'up') setScrollDirection('up');
 					}
 					break;
-				case 'ArrowDown': // Make scrolling slower
+				case 'ArrowDown': // Make scrolling slower or toggle direction
 					if (e.shiftKey) {
 						e.preventDefault();
 						setScrollSpeed((prev) => Math.max(prev - 1, 1));
+					} else if (e.ctrlKey || e.metaKey) {
+						e.preventDefault();
+						if (scrollDirection !== 'down') setScrollDirection('down');
 					}
 					break;
 				case 'h': // Toggle help
@@ -585,7 +608,13 @@ export default function MangaReader() {
 					break;
 			}
 		},
-		[isAutoScrolling, startAutoScroll, pauseAutoScroll, showHelp]
+		[
+			isAutoScrolling,
+			startAutoScroll,
+			pauseAutoScroll,
+			showHelp,
+			scrollDirection,
+		]
 	);
 
 	// Add keyboard event listeners
@@ -614,7 +643,9 @@ export default function MangaReader() {
 					inputUrl={inputUrl}
 					onUrlChange={handleUrlChange}
 					scrollSpeed={scrollSpeed}
+					scrollDirection={scrollDirection}
 					onScrollSpeedChange={handleSpeedChange}
+					onScrollDirectionToggle={toggleScrollDirection}
 					nextChapterPattern={nextChapterPattern}
 					onPatternChange={handlePatternChange}
 					isLoading={isLoading}
@@ -666,7 +697,9 @@ export default function MangaReader() {
 						<FloatingControls
 							isAutoScrolling={isAutoScrolling}
 							scrollSpeed={scrollSpeed}
+							scrollDirection={scrollDirection}
 							onScrollSpeedChange={setScrollSpeed}
+							onScrollDirectionToggle={toggleScrollDirection}
 							onStartAutoScroll={startAutoScroll}
 							onPauseAutoScroll={pauseAutoScroll}
 							onPreviousChapter={loadPreviousChapter}
@@ -744,39 +777,6 @@ export default function MangaReader() {
 
 				{/* Help modal using the component */}
 				<HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
-
-				{/* Scrolling speed indicator */}
-				{isAutoScrolling && (
-					<div className="fixed bottom-4 right-4 bg-black bg-opacity-75 text-white py-2 px-4 rounded-md shadow-lg z-30">
-						<div className="flex items-center space-x-2">
-							<button
-								onClick={() => setScrollSpeed((prev) => Math.max(prev - 1, 1))}
-								className="p-1 hover:bg-gray-700 rounded"
-								title="Slower"
-							>
-								<span className="text-lg">−</span>
-							</button>
-							<div className="text-center min-w-[60px]">
-								<div className="text-xs text-gray-300 mb-1">Speed</div>
-								<div className="font-bold">{scrollSpeed}</div>
-								<div className="text-xs text-gray-300 mt-1">
-									{scrollSpeed <= 3
-										? 'Slow'
-										: scrollSpeed <= 7
-										? 'Normal'
-										: 'Fast'}
-								</div>
-							</div>
-							<button
-								onClick={() => setScrollSpeed((prev) => Math.min(prev + 1, 10))}
-								className="p-1 hover:bg-gray-700 rounded"
-								title="Faster"
-							>
-								<span className="text-lg">+</span>
-							</button>
-						</div>
-					</div>
-				)}
 			</div>
 		</div>
 	);

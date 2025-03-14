@@ -5,7 +5,9 @@ import React from 'react';
 interface FloatingControlsProps {
 	isAutoScrolling: boolean;
 	scrollSpeed: number;
+	scrollDirection: 'down' | 'up';
 	onScrollSpeedChange: (speed: number) => void;
+	onScrollDirectionToggle: () => void;
 	onStartAutoScroll: () => void;
 	onPauseAutoScroll: () => void;
 	onPreviousChapter: () => void;
@@ -20,7 +22,9 @@ interface FloatingControlsProps {
 export default function FloatingControls({
 	isAutoScrolling,
 	scrollSpeed,
+	scrollDirection,
 	onScrollSpeedChange,
+	onScrollDirectionToggle,
 	onStartAutoScroll,
 	onPauseAutoScroll,
 	onPreviousChapter,
@@ -101,6 +105,50 @@ export default function FloatingControls({
 						/>
 						<div className="text-xs text-gray-500 ml-1">10</div>
 					</div>
+
+					{/* Scroll Direction Toggle */}
+					<button
+						onClick={onScrollDirectionToggle}
+						className={`p-2 ${
+							scrollDirection === 'down'
+								? 'text-blue-600 dark:text-blue-500 hover:text-blue-700 dark:hover:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20'
+								: 'text-purple-600 dark:text-purple-500 hover:text-purple-700 dark:hover:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/20'
+						} rounded-lg transition-colors`}
+						aria-label={`Scroll Direction: ${
+							scrollDirection === 'down' ? 'Down' : 'Up'
+						}`}
+						title={`Scroll Direction: ${
+							scrollDirection === 'down' ? 'Down' : 'Up'
+						}`}
+					>
+						{scrollDirection === 'down' ? (
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								className="h-5 w-5"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+							>
+								<path
+									fillRule="evenodd"
+									d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+									clipRule="evenodd"
+								/>
+							</svg>
+						) : (
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								className="h-5 w-5"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+							>
+								<path
+									fillRule="evenodd"
+									d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+									clipRule="evenodd"
+								/>
+							</svg>
+						)}
+					</button>
 
 					{/* Previous Chapter */}
 					<button

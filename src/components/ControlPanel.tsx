@@ -8,7 +8,9 @@ interface ControlPanelProps {
 	inputUrl: string;
 	onUrlChange: (e: ChangeEvent<HTMLInputElement>) => void;
 	scrollSpeed: number;
+	scrollDirection: 'down' | 'up';
 	onScrollSpeedChange: (e: ChangeEvent<HTMLInputElement>) => void;
+	onScrollDirectionToggle: () => void;
 	nextChapterPattern: string;
 	onPatternChange: (e: ChangeEvent<HTMLInputElement>) => void;
 	isLoading: boolean;
@@ -29,7 +31,9 @@ export default function ControlPanel({
 	inputUrl,
 	onUrlChange,
 	scrollSpeed,
+	scrollDirection,
 	onScrollSpeedChange,
+	onScrollDirectionToggle,
 	nextChapterPattern,
 	onPatternChange,
 	isLoading,
@@ -112,6 +116,60 @@ export default function ControlPanel({
 							: scrollSpeed <= 7
 							? 'Normal reading'
 							: 'Fast scanning'}
+					</div>
+				</div>
+
+				<div className="mb-6">
+					<label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+						Scroll Direction
+					</label>
+					<div className="flex">
+						<button
+							onClick={onScrollDirectionToggle}
+							className={`flex items-center justify-center w-full py-2 px-4 rounded-md border ${
+								scrollDirection === 'down'
+									? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400'
+									: 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+							}`}
+							title="Scroll Down"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								className="h-5 w-5 mr-2"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+							>
+								<path
+									fillRule="evenodd"
+									d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
+									clipRule="evenodd"
+								/>
+							</svg>
+							Down
+						</button>
+						<button
+							onClick={onScrollDirectionToggle}
+							className={`flex items-center justify-center w-full py-2 px-4 rounded-md border ml-2 ${
+								scrollDirection === 'up'
+									? 'bg-purple-50 dark:bg-purple-900/20 border-purple-200 dark:border-purple-800 text-purple-600 dark:text-purple-400'
+									: 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400'
+							}`}
+							title="Scroll Up"
+						>
+							<svg
+								xmlns="http://www.w3.org/2000/svg"
+								className="h-5 w-5 mr-2"
+								viewBox="0 0 20 20"
+								fill="currentColor"
+							>
+								<path
+									fillRule="evenodd"
+									d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z"
+									clipRule="evenodd"
+								/>
+							</svg>
+							Up
+						</button>
 					</div>
 				</div>
 
