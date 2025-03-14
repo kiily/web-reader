@@ -25,7 +25,7 @@ const baseUploadApiUrl =
 	process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'https://uploads.mangadex.org';
 const defaultPattern = process.env.NEXT_PUBLIC_DEFAULT_PATTERN || 'chapter-{n}';
 const defaultScrollSpeed = parseInt(
-	process.env.NEXT_PUBLIC_DEFAULT_SCROLL_SPEED || '1',
+	process.env.NEXT_PUBLIC_DEFAULT_SCROLL_SPEED || '5',
 	10
 );
 
@@ -245,20 +245,22 @@ export default function MangaReader() {
 
 		/**
 		 * Calculate scroll step:
-		 * 1. Base it on content size for proportional scrolling speed on different content
-		 * 2. Ensure a minimum scroll amount for very small content
-		 * 3. Scale by user-selected speed
-		 * 4. Apply a significant reduction factor to slow down the overall scrolling
-		 *    (User feedback indicated previous scrolling was far too fast)
+		 * 1. Base it on content size for proportional scrolling on different content
+		 * 2. Ensure scrolling is intuitive at all speed settings
+		 * 3. Use a simpler, more direct calculation based on user speed setting
+		 *
+		 * Speed scale meanings:
+		 * - 1-3: Slow, careful reading
+		 * - 4-7: Normal reading speed
+		 * - 8-10: Fast to very fast scanning
 		 */
-		// Invert the speed scale: higher UI values = slower scrolling
-		// Map the speed from 0.5-10 range to 0.1-0.005 range (0.5 becomes 0.005, 10 becomes 0.1)
-		const speedFactor = 0.005 + (0.095 * (10.5 - scrollSpeed)) / 10;
+		// Use exponential scaling to create a wider range of speeds
+		// Map from 0.5-10 to a more useful range: 0.2 pixels to 12 pixels per frame
+		const basePixelsPerFrame = Math.pow(scrollSpeed, 1.5) * 0.1;
 
-		const scrollStep = Math.max(
-			(speedFactor * Math.max(container.scrollHeight, 1000)) / 5000,
-			speedFactor * 0.5
-		);
+		// Scale by content size to ensure consistent perceived speed regardless of content height
+		const contentScaleFactor = Math.max(container.scrollHeight, 1000) / 5000;
+		const scrollStep = basePixelsPerFrame * contentScaleFactor;
 
 		// Move down by the calculated step
 		container.scrollTop += scrollStep;
@@ -561,16 +563,16 @@ export default function MangaReader() {
 						startAutoScroll();
 					}
 					break;
-				case 'ArrowUp': // Make scrolling faster (decrease scrollSpeed)
+				case 'ArrowUp': // Make scrolling faster
 					if (e.shiftKey) {
 						e.preventDefault();
-						setScrollSpeed((prev) => Math.max(prev - 0.5, 0.5));
+						setScrollSpeed((prev) => Math.min(prev + 1, 10));
 					}
 					break;
-				case 'ArrowDown': // Make scrolling slower (increase scrollSpeed)
+				case 'ArrowDown': // Make scrolling slower
 					if (e.shiftKey) {
 						e.preventDefault();
-						setScrollSpeed((prev) => Math.min(prev + 0.5, 10));
+						setScrollSpeed((prev) => Math.max(prev - 1, 1));
 					}
 					break;
 				case 'h': // Toggle help
@@ -748,9 +750,7 @@ export default function MangaReader() {
 					<div className="fixed bottom-4 right-4 bg-black bg-opacity-75 text-white py-2 px-4 rounded-md shadow-lg z-30">
 						<div className="flex items-center space-x-2">
 							<button
-								onClick={() =>
-									setScrollSpeed((prev) => Math.min(prev + 0.5, 10))
-								}
+								onClick={() => setScrollSpeed((prev) => Math.max(prev - 1, 1))}
 								className="p-1 hover:bg-gray-700 rounded"
 								title="Slower"
 							>
@@ -758,19 +758,17 @@ export default function MangaReader() {
 							</button>
 							<div className="text-center min-w-[60px]">
 								<div className="text-xs text-gray-300 mb-1">Speed</div>
-								<div className="font-bold">{scrollSpeed.toFixed(1)}</div>
+								<div className="font-bold">{scrollSpeed}</div>
 								<div className="text-xs text-gray-300 mt-1">
-									{scrollSpeed < 3
-										? 'Faster'
-										: scrollSpeed < 7
-										? 'Medium'
-										: 'Slower'}
+									{scrollSpeed <= 3
+										? 'Slow'
+										: scrollSpeed <= 7
+										? 'Normal'
+										: 'Fast'}
 								</div>
 							</div>
 							<button
-								onClick={() =>
-									setScrollSpeed((prev) => Math.max(prev - 0.5, 0.5))
-								}
+								onClick={() => setScrollSpeed((prev) => Math.min(prev + 1, 10))}
 								className="p-1 hover:bg-gray-700 rounded"
 								title="Faster"
 							>

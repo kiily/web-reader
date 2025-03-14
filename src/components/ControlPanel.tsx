@@ -97,19 +97,21 @@ export default function ControlPanel({
 						id="scrollSpeed"
 						min="1"
 						max="10"
-						value={11 - scrollSpeed}
-						onChange={(e) => {
-							const sliderValue = parseInt(e.target.value, 10);
-							const invertedSpeed = 10.5 - sliderValue;
-							onScrollSpeedChange({
-								target: { value: invertedSpeed.toString() },
-							} as ChangeEvent<HTMLInputElement>);
-						}}
+						step="1"
+						value={scrollSpeed}
+						onChange={onScrollSpeedChange}
 						className="w-full accent-primary"
 					/>
 					<div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-						<span>Slow</span>
-						<span>Fast</span>
+						<span>1 (Slow)</span>
+						<span>10 (Fast)</span>
+					</div>
+					<div className="text-xs text-gray-500 text-center mt-1">
+						{scrollSpeed <= 3
+							? 'Careful reading'
+							: scrollSpeed <= 7
+							? 'Normal reading'
+							: 'Fast scanning'}
 					</div>
 				</div>
 

@@ -105,11 +105,11 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
 						</li>
 						<li className="flex">
 							<span className="kbd">Shift + ↑</span>
-							<span className="ml-3">Decrease scroll speed (faster)</span>
+							<span className="ml-3">Increase scroll speed (faster)</span>
 						</li>
 						<li className="flex">
 							<span className="kbd">Shift + ↓</span>
-							<span className="ml-3">Increase scroll speed (slower)</span>
+							<span className="ml-3">Decrease scroll speed (slower)</span>
 						</li>
 						<li className="flex">
 							<span className="kbd">h</span>
