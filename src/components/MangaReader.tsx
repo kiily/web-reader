@@ -560,16 +560,16 @@ export default function MangaReader() {
 						startAutoScroll();
 					}
 					break;
-				case 'ArrowUp': // Speed up scrolling
-					if (e.shiftKey) {
-						e.preventDefault();
-						setScrollSpeed((prev) => Math.min(prev + 0.5, 10));
-					}
-					break;
-				case 'ArrowDown': // Slow down scrolling
+				case 'ArrowUp': // Make scrolling faster (decrease scrollSpeed)
 					if (e.shiftKey) {
 						e.preventDefault();
 						setScrollSpeed((prev) => Math.max(prev - 0.5, 0.5));
+					}
+					break;
+				case 'ArrowDown': // Make scrolling slower (increase scrollSpeed)
+					if (e.shiftKey) {
+						e.preventDefault();
+						setScrollSpeed((prev) => Math.min(prev + 0.5, 10));
 					}
 					break;
 				case 'h': // Toggle help
@@ -748,9 +748,10 @@ export default function MangaReader() {
 						<div className="flex items-center space-x-2">
 							<button
 								onClick={() =>
-									setScrollSpeed((prev) => Math.max(prev - 0.5, 0.5))
+									setScrollSpeed((prev) => Math.min(prev + 0.5, 10))
 								}
 								className="p-1 hover:bg-gray-700 rounded"
+								title="Slower"
 							>
 								<span className="text-lg">−</span>
 							</button>
@@ -767,9 +768,10 @@ export default function MangaReader() {
 							</div>
 							<button
 								onClick={() =>
-									setScrollSpeed((prev) => Math.min(prev + 0.5, 10))
+									setScrollSpeed((prev) => Math.max(prev - 0.5, 0.5))
 								}
 								className="p-1 hover:bg-gray-700 rounded"
+								title="Faster"
 							>
 								<span className="text-lg">+</span>
 							</button>
