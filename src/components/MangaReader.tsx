@@ -535,6 +535,7 @@ export default function MangaReader() {
 	};
 
 	const handleSpeedChange = (e: ChangeEvent<HTMLInputElement>) => {
+		// Set the speed directly - the control components now handle the inversion
 		setScrollSpeed(parseInt(e.target.value, 10));
 	};
 

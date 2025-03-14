@@ -32,7 +32,12 @@ export default function FloatingControls({
 	isScrollDisabled,
 }: FloatingControlsProps) {
 	const handleSpeedChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-		onScrollSpeedChange(parseInt(e.target.value, 10));
+		// Invert the slider value to match our speed logic
+		// Slider value of 1 becomes speed 10 (slowest)
+		// Slider value of 10 becomes speed 0.5 (fastest)
+		const sliderValue = parseInt(e.target.value, 10);
+		const invertedSpeed = 10.5 - sliderValue;
+		onScrollSpeedChange(invertedSpeed);
 	};
 
 	return (
@@ -85,16 +90,18 @@ export default function FloatingControls({
 
 					{/* Scroll Speed Slider */}
 					<div className="flex items-center px-3 min-w-[120px]">
+						<div className="text-xs text-gray-500 mr-1">Slow</div>
 						<input
 							type="range"
 							min="1"
 							max="10"
-							value={scrollSpeed}
+							value={11 - scrollSpeed} /* Invert display value */
 							onChange={handleSpeedChange}
 							className="w-full accent-primary h-2"
 							aria-label="Scroll Speed"
 							title="Adjust Scroll Speed"
 						/>
+						<div className="text-xs text-gray-500 ml-1">Fast</div>
 					</div>
 
 					{/* Previous Chapter */}
