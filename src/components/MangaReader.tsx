@@ -786,9 +786,9 @@ export default function MangaReader() {
 						</div>
 
 						{/* Newsletter component at the bottom */}
-						<div className="mt-auto">
+						{/* <div className="mt-auto">
 							<Newsletter />
-						</div>
+						</div> */}
 					</>
 				)}
 
