@@ -293,20 +293,21 @@ export default function FloatingControls({
 						)}
 
 						{/* Scroll Speed Slider */}
-						<div className="flex items-center px-3 min-w-[120px]">
-							<div className="text-xs text-gray-500 mr-1">1</div>
+						<div className="flex items-center px-3 min-w-[140px]">
 							<input
 								type="range"
 								min="1"
-								max="10"
+								max="100"
 								step="1"
 								value={scrollSpeed}
 								onChange={handleSpeedChange}
 								className="w-full accent-primary h-2"
 								aria-label="Scroll Speed"
-								title="Adjust Scroll Speed: 1=Slow, 5=Normal, 10=Fast"
+								title="Adjust Scroll Speed: 1=Very Slow, 50=Normal, 100=Very Fast"
 							/>
-							<div className="text-xs text-gray-500 ml-1">10</div>
+							<div className="flex justify-center text-[10px] mt-1 px-1 min-w-[5ch]">
+								<span className="text-primary font-medium">{scrollSpeed}</span>
+							</div>
 						</div>
 
 						{/* Scroll Direction Toggle */}

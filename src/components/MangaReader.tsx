@@ -25,7 +25,7 @@ const baseUploadApiUrl =
 	process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'https://uploads.mangadex.org';
 const defaultPattern = process.env.NEXT_PUBLIC_DEFAULT_PATTERN || 'chapter-{n}';
 const defaultScrollSpeed = parseInt(
-	process.env.NEXT_PUBLIC_DEFAULT_SCROLL_SPEED || '5',
+	process.env.NEXT_PUBLIC_DEFAULT_SCROLL_SPEED || '50',
 	10
 );
 
@@ -287,25 +287,28 @@ export default function MangaReader() {
 		 * 2. Ensure scrolling is intuitive at all speed settings
 		 * 3. Use a simpler, more direct calculation based on user speed setting
 		 */
-		// Non-linear calculation for more intuitive speed progression
-		// 1: Very slow, 5: Leisurely, 6-8: Quick reading, 10: Very fast
+		// Non-linear calculation for more intuitive speed progression on a 1-100 scale
 		let scrollStep;
 
-		if (scrollSpeed === 1) {
-			// Very slow - slow enough to read complex passages
-			scrollStep = 1.2;
-		} else if (scrollSpeed <= 3) {
-			// Slow to moderate - good for normal reading
-			scrollStep = 2 + (scrollSpeed - 1) * 1.5;
-		} else if (scrollSpeed <= 5) {
-			// Moderate to leisurely - comfortable continuous reading
-			scrollStep = 5 + (scrollSpeed - 3) * 2;
-		} else if (scrollSpeed <= 8) {
-			// Quick reading - faster progression for scanning
-			scrollStep = 9 + (scrollSpeed - 5) * 3;
+		// Convert the 1-100 scale to a usable scroll step
+		// Using a logarithmic scale to provide better control at lower speeds
+		// while still allowing for very fast scrolling at the high end
+
+		if (scrollSpeed <= 20) {
+			// Very slow (1-20): Fine-grained control for careful reading
+			scrollStep = 0.3 + scrollSpeed * 0.1;
+		} else if (scrollSpeed <= 40) {
+			// Slow (21-40): Good for normal reading of text-heavy content
+			scrollStep = 2 + (scrollSpeed - 20) * 0.15;
+		} else if (scrollSpeed <= 60) {
+			// Medium (41-60): Comfortable continuous reading pace
+			scrollStep = 5 + (scrollSpeed - 40) * 0.2;
+		} else if (scrollSpeed <= 80) {
+			// Fast (61-80): Quick scanning of content
+			scrollStep = 9 + (scrollSpeed - 60) * 0.35;
 		} else {
-			// Very fast - rapid scanning and skimming
-			scrollStep = 18 + (scrollSpeed - 8) * 4;
+			// Very fast (81-100): Rapid progression through content
+			scrollStep = 16 + (scrollSpeed - 80) * 0.6;
 		}
 
 		// Move based on direction
@@ -793,7 +796,7 @@ export default function MangaReader() {
 				case 'ArrowUp': // Make scrolling faster or toggle direction
 					if (e.shiftKey) {
 						e.preventDefault();
-						setScrollSpeed((prev) => Math.min(prev + 1, 10));
+						setScrollSpeed((prev) => Math.min(prev + 5, 100));
 					} else if (e.ctrlKey || e.metaKey) {
 						e.preventDefault();
 						if (scrollDirection !== 'up') setScrollDirection('up');
@@ -802,7 +805,7 @@ export default function MangaReader() {
 				case 'ArrowDown': // Make scrolling slower or toggle direction
 					if (e.shiftKey) {
 						e.preventDefault();
-						setScrollSpeed((prev) => Math.max(prev - 1, 1));
+						setScrollSpeed((prev) => Math.max(prev - 5, 1));
 					} else if (e.ctrlKey || e.metaKey) {
 						e.preventDefault();
 						if (scrollDirection !== 'down') setScrollDirection('down');

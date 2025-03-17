@@ -100,20 +100,19 @@ export default function ControlPanel({
 						type="range"
 						id="scrollSpeed"
 						min="1"
-						max="10"
+						max="100"
 						step="1"
 						value={scrollSpeed}
 						onChange={onScrollSpeedChange}
 						className="w-full accent-primary"
 					/>
-					<div className="flex justify-between text-xs text-gray-500 dark:text-gray-400 mt-1">
-						<span>1 (Slow)</span>
-						<span>10 (Fast)</span>
+					<div className="flex justify-center text-sm text-primary font-medium mt-1">
+						{scrollSpeed}
 					</div>
 					<div className="text-xs text-gray-500 text-center mt-1">
-						{scrollSpeed <= 3
+						{scrollSpeed <= 20
 							? 'Careful reading'
-							: scrollSpeed <= 7
+							: scrollSpeed <= 60
 							? 'Normal reading'
 							: 'Fast scanning'}
 					</div>
