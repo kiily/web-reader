@@ -19,13 +19,13 @@ export default function NavBar({
 }: NavBarProps) {
 	return (
 		<div className="sticky top-4 z-40 w-full px-4 sm:px-6 lg:px-8">
-			<nav className="flex items-center justify-between h-14 px-4 mx-auto rounded-full bg-black text-white max-w-7xl border border-gray-800">
+			<nav className="flex items-center justify-between h-14 px-4 mx-auto rounded-full bg-white dark:bg-gray-900 text-gray-900 dark:text-white max-w-7xl border border-gray-200 dark:border-gray-800 shadow-md">
 				{/* Logo and title */}
 				<div className="flex items-center space-x-10">
 					<div className="flex-shrink-0 flex items-center">
 						<Link href="/" className="flex items-center">
 							<svg
-								className="h-8 w-8 text-white"
+								className="h-8 w-8 text-primary dark:text-primary"
 								viewBox="0 0 24 24"
 								fill="currentColor"
 								xmlns="http://www.w3.org/2000/svg"
@@ -33,11 +33,13 @@ export default function NavBar({
 								<path d="M16 8V5H14V8H11V10H14V13H16V10H19V8H16Z" />
 								<path d="M3 5V11C3 14.3137 5.68629 17 9 17H15V15H9C6.79086 15 5 13.2091 5 11V5H3Z" />
 							</svg>
-							<span className="ml-2 text-base font-semibold tracking-tight text-white">
+							<span className="ml-2 text-base font-semibold tracking-tight text-gray-900 dark:text-white">
 								{title || 'Manga Reader'}
 							</span>
 							{subtitle && (
-								<span className="ml-2 text-sm text-gray-400">{subtitle}</span>
+								<span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+									{subtitle}
+								</span>
 							)}
 						</Link>
 					</div>
@@ -85,7 +87,7 @@ export default function NavBar({
 
 						<button
 							onClick={toggleControls}
-							className="p-2 text-gray-400 hover:text-white transition-colors duration-200"
+							className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
 							aria-label="Toggle controls"
 						>
 							<svg
@@ -104,7 +106,7 @@ export default function NavBar({
 
 						<button
 							onClick={toggleHelp}
-							className="p-2 text-gray-400 hover:text-white transition-colors duration-200"
+							className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
 							aria-label="Show help"
 						>
 							<svg
@@ -125,7 +127,7 @@ export default function NavBar({
 							href="https://github.com/"
 							target="_blank"
 							rel="noopener noreferrer"
-							className="p-2 text-gray-400 hover:text-white transition-colors duration-200"
+							className="p-2 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors duration-200"
 							aria-label="GitHub"
 						>
 							<svg
